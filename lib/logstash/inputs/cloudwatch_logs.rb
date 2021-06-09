@@ -194,8 +194,14 @@ class LogStash::Inputs::CloudWatch_Logs < LogStash::Inputs::Base
       }
       resp = @cloudwatch.filter_log_events(params)
 
-      resp.events.each do |event|
-        process_log(event, group)
+      last_cloudwatch_event = nil
+      resp.events.each do |cloudwatch_event|
+        last_cloudwatch_event = cloudwatch_event
+        process_log(cloudwatch_event, group)
+      end
+
+      @codec.flush do |event|
+        process_event(event, last_cloudwatch_event, group)
       end
 
       _sincedb_write
@@ -212,17 +218,22 @@ class LogStash::Inputs::CloudWatch_Logs < LogStash::Inputs::Base
   def process_log(log, group)
 
     @codec.decode(log.message.to_str, identity=log.log_stream_name) do |event|
-      event.set("@timestamp", parse_time(log.timestamp))
-      event.set("[cloudwatch_logs][ingestion_time]", parse_time(log.ingestion_time))
-      event.set("[cloudwatch_logs][log_group]", group)
-      event.set("[cloudwatch_logs][log_stream]", log.log_stream_name)
-      event.set("[cloudwatch_logs][event_id]", log.event_id)
-      decorate(event)
-
-      @queue << event
-      @sincedb[group] = log.timestamp + 1
+      process_event(event, log, group)
     end
   end # def process_log
+
+  private
+  def process_event(event, log, group)
+    event.set("@timestamp", parse_time(log.timestamp))
+    event.set("[cloudwatch_logs][ingestion_time]", parse_time(log.ingestion_time))
+    event.set("[cloudwatch_logs][log_group]", group)
+    event.set("[cloudwatch_logs][log_stream]", log.log_stream_name)
+    event.set("[cloudwatch_logs][event_id]", log.event_id)
+    decorate(event)
+
+    @queue << event
+    @sincedb[group] = log.timestamp + 1
+  end
 
   # def parse_time
   private

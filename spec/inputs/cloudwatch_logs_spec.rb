@@ -21,7 +21,7 @@ describe LogStash::Inputs::CloudWatch_Logs do
 
 
   context 'when interrupting the plugin' do
-    let(:config) {super.merge({'interval' => 5})}
+    let(:config) {super().merge({'interval' => 5})}
 
     before do
       expect_any_instance_of(LogStash::Inputs::CloudWatch_Logs).to receive(:process_group).and_return(nil)
